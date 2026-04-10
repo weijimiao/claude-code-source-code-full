@@ -1,0 +1,6 @@
+# AutoHack dependency list
+#
+# Core runtime uses Python standard library only.
+# These packages are optional and used when setting up an enhanced virtual environment:
+dnspython>=2.6.1
+requests>=2.32.3
