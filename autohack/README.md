@@ -13,6 +13,12 @@ python3 main.py run --policy policy.json --target example.com --mode dns --log r
 
 ## Notes
 
+# or install from requirements file:
+. .venv/bin/activate
+pip install -r requirements.txt
+# or install from requirements file:
+.venv\Scripts\activate
+pip install -r requirements.txt
 - This tool is for **authorized defensive testing** only.
 - It enforces target scope checks and blocks prohibited actions from policy.
 - It writes JSONL audit logs for each run step.
