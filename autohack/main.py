@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -244,4 +245,70 @@ def cmd_web_security(args: argparse.Namespace) -> int:
     websec_p.add_argument("--url", required=True)
     websec_p.add_argument("--timeout", type=int, default=10)
     websec_p.set_defaults(func=cmd_web_security)
+
+def extract_target(text: str, default_target: str) -> str:
+    domain_match = re.search(r"\b([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b", text)
+    ip_match = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)
+    if domain_match:
+        return domain_match.group(0)
+    if ip_match:
+        return ip_match.group(0)
+    return default_target
+
+
+def cmd_agent(args: argparse.Namespace) -> int:
+    prompt = args.task.lower()
+    target = extract_target(args.task, args.default_target)
+
+    if any(word in prompt for word in ["tool", "kali", "installed"]):
+        return cmd_check_tools(argparse.Namespace(json=args.json))
+
+    if "plan" in prompt:
+        mode = "tcp" if any(w in prompt for w in ["port", "tcp", "scan"]) else "dns"
+        return cmd_plan(argparse.Namespace(policy=args.policy, target=target, mode=mode))
+
+    if any(word in prompt for word in ["header", "csp", "security check"]):
+        return cmd_web_security(argparse.Namespace(policy=args.policy, url=f"https://{target}", timeout=args.timeout))
+
+    if any(word in prompt for word in ["website", "web", "fetch"]):
+        return cmd_web(
+            argparse.Namespace(
+                policy=args.policy,
+                url=f"https://{target}",
+                timeout=args.timeout,
+                max_bytes=args.max_bytes,
+            )
+        )
+
+    if any(word in prompt for word in ["terminal", "command", "run shell"]):
+        shell_cmd = args.fallback_command
+        return cmd_terminal(argparse.Namespace(policy=args.policy, command=shell_cmd, timeout=args.timeout))
+
+    mode = "tcp" if any(w in prompt for w in ["port", "tcp", "scan"]) else "dns"
+    return cmd_run(
+        argparse.Namespace(
+            policy=args.policy,
+            log=args.log,
+            target=target,
+            mode=mode,
+            engine=args.engine,
+            action="recon",
+            approved=args.approved,
+            timeout=args.timeout,
+        )
+    )
+
+
+    agent_p = sub.add_parser("agent", help="Natural-language autopilot wrapper so you don't memorize commands.")
+    agent_p.add_argument("--policy", default="policy.json")
+    agent_p.add_argument("--task", required=True, help="Natural language task, e.g. 'plan scan for example.com'")
+    agent_p.add_argument("--default-target", default="example.com")
+    agent_p.add_argument("--engine", choices=["stdlib", "external"], default="stdlib")
+    agent_p.add_argument("--approved", action="store_true")
+    agent_p.add_argument("--timeout", type=int, default=10)
+    agent_p.add_argument("--max-bytes", type=int, default=2000)
+    agent_p.add_argument("--log", default="autohack.log.jsonl")
+    agent_p.add_argument("--json", action="store_true", help="Used for tool inventory tasks.")
+    agent_p.add_argument("--fallback-command", default="echo agent-ready")
+    agent_p.set_defaults(func=cmd_agent)
 
