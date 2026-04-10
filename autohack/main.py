@@ -203,3 +203,45 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+def cmd_web_security(args: argparse.Namespace) -> int:
+    policy = Policy.from_file(Path(args.policy))
+    parsed = urlparse(args.url)
+    domain = parsed.hostname or ""
+    if domain not in policy.allowed_web_domains:
+        print(f"Blocked: domain '{domain}' is not in policy allowed_web_domains.")
+        return 2
+
+    request = Request(args.url, headers={"User-Agent": "autohack/1.0"})
+    try:
+        with urlopen(request, timeout=args.timeout) as response:  # noqa: S310
+            headers = {k.lower(): v for k, v in response.headers.items()}
+    except Exception as err:  # noqa: BLE001
+        print(f"Security check failed: {err}")
+        return 1
+
+    required = [
+        "content-security-policy",
+        "x-content-type-options",
+        "x-frame-options",
+        "referrer-policy",
+    ]
+    missing = [h for h in required if h not in headers]
+    print(f"URL: {args.url}")
+    print("Missing recommended headers:")
+    if missing:
+        for h in missing:
+            print(f"- {h}")
+    else:
+        print("- none")
+    return 0
+
+
+    websec_p = sub.add_parser(
+        "web-security-check",
+        help="Check common browser security headers (safe alternative to JS injection testing).",
+    )
+    websec_p.add_argument("--policy", default="policy.json")
+    websec_p.add_argument("--url", required=True)
+    websec_p.add_argument("--timeout", type=int, default=10)
+    websec_p.set_defaults(func=cmd_web_security)
+
